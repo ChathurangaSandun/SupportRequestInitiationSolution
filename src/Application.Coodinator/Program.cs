@@ -32,7 +32,7 @@ namespace Application.Coodinator
 				services.AddSingleton(queueSettings);
 
 
-				services.RegisterQueueServices(hostContext);
+				//services.RegisterQueueServices(hostContext);
 				//services.AddHostedService<Worker>();
 				services.AddHostedService<TimedHostedService>();
 			});
