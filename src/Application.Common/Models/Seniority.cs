@@ -11,5 +11,6 @@ namespace Application.Common.Models
 		public string Name { get; set; }
 		public short Id { get; set; }
 		public double Efficiency { get; set; }
+		public int AssignOrder { get; set; }
 	}
 }

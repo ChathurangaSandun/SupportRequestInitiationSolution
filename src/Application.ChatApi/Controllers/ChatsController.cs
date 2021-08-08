@@ -50,11 +50,10 @@ namespace Application.ChatApi.Controllers
 				{
 
 					var queueCount = channel.MessageCount("SessionQueue");
-					if (int.Parse(queueMaxCount) < queueCount + 1)
-					{
-						return NotFound("Queue is not available");
-					}
-
+					//if (int.Parse(queueMaxCount) < queueCount + 1)
+					//{
+					//	return NotFound("Queue is not available");
+					//}
 
 					supportRequest.User = i.ToString();
 					supportRequest.Id = Guid.NewGuid();
@@ -67,15 +66,7 @@ namespace Application.ChatApi.Controllers
 
 					var json = JsonConvert.SerializeObject(supportCreatedMessage);
 					var body = Encoding.UTF8.GetBytes(json);
-
-
-					channel.BasicPublish(exchange: "",
-										 routingKey: "SessionQueue",
-										 basicProperties: null,
-										 body: body);
-
-					Thread.Sleep(1000);
-
+					channel.BasicPublish(exchange: "", routingKey: "SessionQueue", basicProperties: null, body: body);
 				}
 
 				return Created("", null);

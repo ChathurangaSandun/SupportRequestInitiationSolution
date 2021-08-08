@@ -71,8 +71,9 @@ namespace Application.AgentCoodinatorService.Controllers
 				// create queues
 				foreach (var agent in availableAgents)
 				{
-					_channel.QueueDeclare(queue: agent.Name.ToUpper(), durable: true, exclusive: false, autoDelete: false, arguments: new Dictionary<string, object>() { ["x-max-length"] = MaxConcurrentCount, ["x-overflow"] = "reject-publish" });
 					concurrentChatCount += agent.Seniority.Efficiency * MaxConcurrentCount;
+					_channel.QueueDeclare(queue: agent.Name.ToUpper(), durable: true, exclusive: false, autoDelete: false, arguments: new Dictionary<string, object>() { ["x-max-length"] = Convert.ToInt32( agent.Seniority.Efficiency * MaxConcurrentCount), ["x-overflow"] = "reject-publish" });
+					
 				}
 
 
@@ -104,8 +105,15 @@ namespace Application.AgentCoodinatorService.Controllers
 			using (var db = new AgentCoordinatorDbContext())
 			{
 				var team = db.Teams.Include(o => o.Agents).ThenInclude(o => o.Seniority).FirstOrDefault(o => o.Shift == shiftStartDto.Shift);
+				
+				var availableAgents = team.Agents.ToList();
+				if (team.IsOverflow)
+				{
+					var overflowTeam = db.Teams.Include(o => o.Agents).ThenInclude(o => o.Seniority).FirstOrDefault(o => o.Shift == Shift.None);
+					availableAgents.AddRange(overflowTeam.Agents);
+				}
 
-				foreach (var agent in team.Agents)
+				foreach (var agent in availableAgents)
 				{
 					_channel.QueueDelete(agent.Name.ToUpper(), false, false);
 				}
