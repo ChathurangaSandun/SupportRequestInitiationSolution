@@ -2,6 +2,7 @@
 using MassTransit;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,58 +12,57 @@ using System.Threading.Tasks;
 
 namespace Application.Coodinator
 {
-    public class TimedHostedService : IHostedService, IDisposable
-    {
-        private int executionCount = 0;
-        private readonly ILogger<TimedHostedService> _logger;
-        private Timer _timer;
-        private readonly IBusControl _busControl;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly QueueSettings _queueSettings;
+	public class TimedHostedService : IHostedService, IDisposable
+	{		
+		private readonly ILogger<TimedHostedService> _logger;
+		private Timer _timer;
+		private IServiceProvider _sp;
+		private ConnectionFactory _factory;
+		private IConnection _connection;
+		private IModel _channel;
 
-		public TimedHostedService(ILogger<TimedHostedService> logger, IBusControl busControl, IServiceProvider serviceProvider, QueueSettings queueSettings)
+		public TimedHostedService(ILogger<TimedHostedService> logger, IServiceProvider sp)
 		{
 			_logger = logger;
-			_busControl = busControl;
-			_serviceProvider = serviceProvider;
-			_queueSettings = queueSettings;
+			_sp = sp;
+			_factory = new ConnectionFactory() { HostName = "localhost" };
+			_connection = _factory.CreateConnection();
+			_channel = _connection.CreateModel();
+			_channel.QueueDeclare(queue: "SessionQueue", durable: true, exclusive: false, autoDelete: false, arguments: new Dictionary<string, object>() { ["x-max-length" ] = 10 , ["x-overflow"] = "reject-publish"});
 		}
 
 		public Task StartAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("Timed Hosted Service running.");
+		{
+			_logger.LogInformation("Timed Hosted Service running.");
+			_timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
 
-            _timer = new Timer(DoWork, null, TimeSpan.Zero,
-                TimeSpan.FromSeconds(10));
+			return Task.CompletedTask;
+		}
 
-            return Task.CompletedTask;
-        }
+		private void DoWork(object state)
+		{
+			var size = _channel.MessageCount("SessionQueue");
+			if (size > 0)
+			{
+				var b = _channel.BasicGet(queue: "SessionQueue", autoAck: true);
+				var body = b.Body.ToArray();
+				var message = Encoding.UTF8.GetString(body);
+				Console.WriteLine("Received {0}", message);
+			}
 
-        private void DoWork(object state)
-        {
-            var count = Interlocked.Increment(ref executionCount);
+			_logger.LogInformation("Timed Hosted Service is working.");
+		}
 
-            if (count % 5 == 0) {                
-               
-            }
-        
+		public Task StopAsync(CancellationToken stoppingToken)
+		{
+			_logger.LogInformation("Timed Hosted Service is stopping.");
+			_timer?.Change(Timeout.Infinite, 0);
+			return Task.CompletedTask;
+		}
 
-            _logger.LogInformation(
-                "Timed Hosted Service is working. Count: {Count}", count);
-        }
-
-        public Task StopAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("Timed Hosted Service is stopping.");
-
-            _timer?.Change(Timeout.Infinite, 0);
-
-            return Task.CompletedTask;
-        }
-
-        public void Dispose()
-        {
-            _timer?.Dispose();
-        }
-    }
+		public void Dispose()
+		{
+			_timer?.Dispose();
+		}
+	}
 }
